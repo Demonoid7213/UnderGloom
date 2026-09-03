@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnderGloom - An Underground Exploration</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            color: #ccc;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        canvas {
+            border: 3px solid #1a3a3a;
+            box-shadow: 0 0 20px rgba(100, 200, 255, 0.2);
+        }
+
+        #info {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            max-width: 800px;
+        }
+
+        #info h1 {
+            color: #6ec8ff;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="info">
+            <h1>UnderGloom</h1>
+            <p>Use arrow keys or WASD to explore the mysterious depths...</p>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/scenes/boot.js"></script>
+    <script src="js/scenes/game.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/world/chunk-manager.js"></script>
+    <script src="js/world/terrain-generator.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
