@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UnderGloom</title>
+    <title>UnderGloom - Terraria Style</title>
     <style>
         * {
             margin: 0;
@@ -11,36 +11,69 @@
             box-sizing: border-box;
         }
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             background: #0a0a0a;
-            font-family: Arial, sans-serif;
             color: #ccc;
+            font-family: Arial, sans-serif;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
         }
         #gameContainer {
+            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            gap: 10px;
         }
         #gameCanvas {
             border: 3px solid #1a3a3a;
             box-shadow: 0 0 20px rgba(100, 200, 255, 0.2);
-            display: block;
             background: #0a1a1f;
+            cursor: crosshair;
+            display: block;
         }
         #info {
             text-align: center;
             color: #6ec8ff;
-            font-size: 14px;
             text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
+        }
+        #info h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        #info p {
+            font-size: 12px;
         }
         #debug {
             color: #6ec8ff;
-            font-size: 12px;
+            font-size: 11px;
             font-family: monospace;
+        }
+        #sidebar {
+            width: 200px;
+            background: #0f1f25;
+            border: 2px solid #1a3a3a;
+            padding: 15px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #sidebar h2 {
+            color: #6ec8ff;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
+        }
+        .inventory-item {
+            background: #1a2a3a;
+            border: 1px solid #2a4a5a;
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .inventory-item span {
+            color: #aaff44;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -48,43 +81,48 @@
     <div id="gameContainer">
         <div id="info">
             <h1>UnderGloom</h1>
-            <p>Use WASD or Arrow Keys to move</p>
+            <p>WASD to move | SPACE to jump | Click to break blocks</p>
         </div>
-        <canvas id="gameCanvas" width="1024" height="576"></canvas>
-        <div id="debug">Position: (0, 0) | Moving: No</div>
+        <canvas id="gameCanvas" width="1024" height="650"></canvas>
+        <div id="debug">Position: (0, 0) | Blocks: 0</div>
+    </div>
+    <div id="sidebar">
+        <h2>INVENTORY</h2>
+        <div id="inventoryList"></div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const debugEl = document.getElementById('debug');
+        const inventoryList = document.getElementById('inventoryList');
 
         // ==================== CONSTANTS ====================
         const TILE_SIZE = 8;
-        const CHUNK_WIDTH = 16;
-        const CHUNK_HEIGHT = 16;
-        const CHUNK_PIXEL_WIDTH = CHUNK_WIDTH * TILE_SIZE;
-        const CHUNK_PIXEL_HEIGHT = CHUNK_HEIGHT * TILE_SIZE;
-        const WORLD_WIDTH = 10000;
-        const WORLD_HEIGHT = 1000;
-        const PLAYER_SPEED = 120;
+        const WORLD_WIDTH = 200;
+        const WORLD_HEIGHT = 100;
+        const GRAVITY = 0.6;
+        const PLAYER_SPEED = 2;
+        const PLAYER_WIDTH = 8;
+        const PLAYER_HEIGHT = 16;
 
-        // ==================== TILE COLORS ====================
-        const TILE_COLORS = {
-            'mire-clay': '#4a3a2a',
-            'blink-moss': '#5a8a3a',
-            'mushroom': '#6a4a8a',
-            'lumen-pustule': '#aaff44',
-            'hardened-clay': '#2a3a4a',
-            'coal-ore': '#1a1a1a',
-            'iron-ore': '#3a3a3a',
-            'empty': '#0a1a1f'
+        // ==================== IMAGE URLS ====================
+        const TILE_IMAGES = {
+            'mire-clay': 'https://ibb.co/HDbHt2TY/image.png',
+            'blink-moss': 'https://ibb.co/0RgdcLJn/image.png',
+            'frost-lantern-stem': 'https://ibb.co/ns2dccGr/image.png',
+            'frost-lantern-topper': 'https://ibb.co/Y7k2TnwY/image.png',
+            'hardened-clay': 'https://ibb.co/Lz528FfZ/image.png',
+            'coal-ore': 'https://ibb.co/xT4yvn3/image.png',
+            'iron-ore': 'https://ibb.co/sJV5YGnR/image.png',
+            'lumen-pustule': 'https://ibb.co/rKY2h0vb/image.png',
         };
 
         // ==================== TERRAIN GENERATOR ====================
         class TerrainGenerator {
             constructor() {
                 this.seed = 12345;
+                this.terrain = this.generateTerrain();
             }
 
             seededRandom(x, y, seed = this.seed) {
@@ -92,170 +130,248 @@
                 return n - Math.floor(n);
             }
 
-            generateTile(worldX, worldY) {
-                const rand = this.seededRandom(worldX, worldY);
-                const oreNoise = this.seededRandom(worldX * 1.5, worldY * 1.5);
+            generateTerrain() {
+                const terrain = [];
+                for (let y = 0; y < WORLD_HEIGHT; y++) {
+                    terrain[y] = [];
+                    for (let x = 0; x < WORLD_WIDTH; x++) {
+                        terrain[y][x] = this.generateTile(x, y);
+                    }
+                }
+                // Generate mushroom trees
+                this.generateTrees(terrain);
+                return terrain;
+            }
 
-                // Surface layer
-                if (worldY < 2) {
+            generateTile(x, y) {
+                const rand = this.seededRandom(x, y);
+                const oreNoise = this.seededRandom(x * 1.5, y * 1.5);
+
+                // Surface
+                if (y < 5) {
                     if (rand < 0.3) return 'mire-clay';
                     if (rand < 0.5) return 'blink-moss';
-                    if (rand < 0.65) return 'mushroom';
-                    if (rand < 0.8) return 'lumen-pustule';
-                    return 'empty';
+                    if (rand < 0.6) return 'lumen-pustule';
+                    return null;
                 }
 
                 // Upper ground
-                if (worldY < 6) {
-                    if (rand < 0.7) return 'mire-clay';
-                    if (rand < 0.85 && oreNoise > 0.7) return 'coal-ore';
-                    if (rand < 0.95 && oreNoise > 0.8) return 'iron-ore';
-                    return 'empty';
+                if (y < 15) {
+                    if (rand < 0.8) return 'mire-clay';
+                    if (rand < 0.9 && oreNoise > 0.7) return 'coal-ore';
+                    if (rand < 1.0 && oreNoise > 0.8) return 'iron-ore';
+                    return null;
                 }
 
                 // Deep underground
-                if (rand < 0.5) return 'hardened-clay';
+                if (rand < 0.7) return 'hardened-clay';
                 if (oreNoise > 0.75) {
                     if (oreNoise > 0.9) return 'iron-ore';
                     if (oreNoise > 0.85) return 'coal-ore';
                     return 'coal-ore';
                 }
 
-                return 'empty';
+                return null;
+            }
+
+            generateTrees(terrain) {
+                // Generate frost lantern mushrooms
+                for (let x = 10; x < WORLD_WIDTH - 10; x += 20) {
+                    const rand = this.seededRandom(x, 999);
+                    if (rand < 0.3) {
+                        // Find ground level
+                        for (let y = 0; y < WORLD_HEIGHT; y++) {
+                            if (terrain[y][x] && !terrain[y-1]?.[x]) {
+                                // Place mushroom
+                                const height = 5 + Math.floor(rand * 8);
+                                for (let i = 0; i < height; i++) {
+                                    if (y - i > 0) terrain[y - i][x] = 'frost-lantern-stem';
+                                }
+                                if (y - height > 0) terrain[y - height][x] = 'frost-lantern-topper';
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // ==================== PLAYER ====================
-        class Player {
+        // ==================== PHYSICS ENTITY ====================
+        class Entity {
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
                 this.vx = 0;
                 this.vy = 0;
-                this.width = 6;
-                this.height = 6;
+                this.width = PLAYER_WIDTH;
+                this.height = PLAYER_HEIGHT;
+                this.onGround = false;
             }
 
-            update(keys) {
-                // Apply input
-                if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-                    this.vx = -PLAYER_SPEED;
-                } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-                    this.vx = PLAYER_SPEED;
-                } else {
-                    this.vx *= 0.8;
+            update(terrain) {
+                // Apply gravity
+                this.vy += GRAVITY;
+
+                // Collision detection
+                this.onGround = false;
+                const gridX = Math.floor(this.x / TILE_SIZE);
+                const gridY = Math.floor(this.y / TILE_SIZE);
+
+                // Check below
+                if (gridY + 2 < WORLD_HEIGHT && terrain[gridY + 2][gridX]) {
+                    this.vy = 0;
+                    this.y = (gridY + 1) * TILE_SIZE;
+                    this.onGround = true;
                 }
 
-                if (keys['ArrowUp'] || keys['w'] || keys['W']) {
-                    this.vy = -PLAYER_SPEED * 0.7;
-                } else if (keys['ArrowDown'] || keys['s'] || keys['S']) {
-                    this.vy = PLAYER_SPEED * 0.7;
-                } else {
-                    this.vy *= 0.8;
-                }
+                // Apply velocity
+                this.x += this.vx;
+                this.y += this.vy;
 
-                // Update position
-                this.x += this.vx / 60;
-                this.y += this.vy / 60;
-
-                // Clamp to world bounds
-                this.x = Math.max(50, Math.min(WORLD_WIDTH - 50, this.x));
-                this.y = Math.max(50, Math.min(WORLD_HEIGHT - 50, this.y));
+                // World bounds
+                if (this.x < 0) this.x = 0;
+                if (this.x > WORLD_WIDTH * TILE_SIZE - this.width) this.x = WORLD_WIDTH * TILE_SIZE - this.width;
+                if (this.y > WORLD_HEIGHT * TILE_SIZE) this.y = 50; // Reset if fell off world
             }
 
             draw(ctx, camX, camY) {
                 const screenX = this.x - camX;
                 const screenY = this.y - camY;
                 ctx.fillStyle = '#6ec8ff';
-                ctx.fillRect(screenX - this.width / 2, screenY - this.height / 2, this.width, this.height);
+                ctx.fillRect(screenX, screenY, this.width, this.height);
                 ctx.fillStyle = '#ffffff';
-                ctx.fillRect(screenX - 2, screenY - 2, 1, 1);
-                ctx.fillRect(screenX + 1, screenY - 2, 1, 1);
+                ctx.fillRect(screenX + 2, screenY + 2, 2, 2);
+                ctx.fillRect(screenX + 4, screenY + 2, 2, 2);
             }
         }
 
-        // ==================== CHUNK MANAGER ====================
-        class ChunkManager {
-            constructor() {
-                this.terrain = new TerrainGenerator();
-                this.chunks = new Map();
+        // ==================== GAME STATE ====================
+        const generator = new TerrainGenerator();
+        const terrain = generator.terrain;
+        const player = new Entity(100, 50);
+        const keys = {};
+        const inventory = {};
+
+        // ==================== INPUT ====================
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ' && player.onGround) {
+                player.vy = -10;
             }
+        });
 
-            getTile(x, y) {
-                return this.terrain.generateTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE));
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) + (player.x - canvas.width / 2);
+            const mouseY = (e.clientY - rect.top) + (player.y - canvas.height / 2);
+
+            const gridX = Math.floor(mouseX / TILE_SIZE);
+            const gridY = Math.floor(mouseY / TILE_SIZE);
+
+            if (gridX >= 0 && gridX < WORLD_WIDTH && gridY >= 0 && gridY < WORLD_HEIGHT) {
+                const block = terrain[gridY][gridX];
+                if (block) {
+                    terrain[gridY][gridX] = null;
+                    inventory[block] = (inventory[block] || 0) + 1;
+                    updateInventory();
+                }
             }
+        });
 
-            drawChunk(ctx, camX, camY, startTileX, startTileY) {
-                const endTileX = startTileX + Math.ceil(canvas.width / TILE_SIZE) + 2;
-                const endTileY = startTileY + Math.ceil(canvas.height / TILE_SIZE) + 2;
+        // ==================== INVENTORY UI ====================
+        function updateInventory() {
+            inventoryList.innerHTML = '';
+            const items = Object.entries(inventory).sort();
+            if (items.length === 0) {
+                inventoryList.innerHTML = '<div class="inventory-item">Empty</div>';
+            } else {
+                items.forEach(([item, count]) => {
+                    const div = document.createElement('div');
+                    div.className = 'inventory-item';
+                    div.innerHTML = `${item.replace(/-/g, ' ')}: <span>${count}</span>`;
+                    inventoryList.appendChild(div);
+                });
+            }
+        }
 
-                for (let tx = startTileX; tx < endTileX; tx++) {
-                    for (let ty = startTileY; ty < endTileY; ty++) {
-                        const tileType = this.getTile(tx * TILE_SIZE, ty * TILE_SIZE);
-                        const color = TILE_COLORS[tileType] || '#0a1a1f';
+        // ==================== RENDER ====================
+        function render() {
+            // Camera
+            const camX = player.x - canvas.width / 2;
+            const camY = player.y - canvas.height / 2;
+
+            ctx.fillStyle = '#0a1a1f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw terrain
+            const startTileX = Math.max(0, Math.floor(camX / TILE_SIZE));
+            const endTileX = Math.min(WORLD_WIDTH, Math.ceil((camX + canvas.width) / TILE_SIZE) + 1);
+            const startTileY = Math.max(0, Math.floor(camY / TILE_SIZE));
+            const endTileY = Math.min(WORLD_HEIGHT, Math.ceil((camY + canvas.height) / TILE_SIZE) + 1);
+
+            for (let y = startTileY; y < endTileY; y++) {
+                for (let x = startTileX; x < endTileX; x++) {
+                    const block = terrain[y][x];
+                    if (block) {
+                        const screenX = x * TILE_SIZE - camX;
+                        const screenY = y * TILE_SIZE - camY;
+
+                        // Draw colored tiles
+                        const colors = {
+                            'mire-clay': '#4a3a2a',
+                            'blink-moss': '#5a8a3a',
+                            'frost-lantern-stem': '#6a4a8a',
+                            'frost-lantern-topper': '#8a6aaa',
+                            'hardened-clay': '#2a3a4a',
+                            'coal-ore': '#1a1a1a',
+                            'iron-ore': '#5a5a5a',
+                            'lumen-pustule': '#aaff44'
+                        };
                         
-                        const worldX = tx * TILE_SIZE;
-                        const worldY = ty * TILE_SIZE;
-                        const screenX = worldX - camX;
-                        const screenY = worldY - camY;
-
-                        ctx.fillStyle = color;
+                        ctx.fillStyle = colors[block] || '#2a2a2a';
                         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-
-                        // Add grid
+                        
                         ctx.strokeStyle = '#1a2a3a';
                         ctx.lineWidth = 0.5;
                         ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
                     }
                 }
             }
-        }
-
-        // ==================== GAME STATE ====================
-        const terrain = new TerrainGenerator();
-        const chunkManager = new ChunkManager();
-        const player = new Player(512, 200);
-        const keys = {};
-
-        // ==================== INPUT HANDLING ====================
-        window.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
-        });
-
-        window.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
-        });
-
-        // ==================== GAME LOOP ====================
-        function gameLoop() {
-            // Update
-            player.update(keys);
-
-            // Camera follows player
-            const camX = player.x - canvas.width / 2;
-            const camY = player.y - canvas.height / 2;
-
-            // Draw
-            ctx.fillStyle = '#0a1a1f';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw chunks
-            const startTileX = Math.floor(camX / TILE_SIZE) - 1;
-            const startTileY = Math.floor(camY / TILE_SIZE) - 1;
-            chunkManager.drawChunk(ctx, camX, camY, startTileX, startTileY);
 
             // Draw player
             player.draw(ctx, camX, camY);
 
             // Update debug
-            const isMoving = Math.abs(player.vx) > 1 || Math.abs(player.vy) > 1 ? 'Yes' : 'No';
-            debugEl.textContent = `Position: (${Math.floor(player.x)}, ${Math.floor(player.y)}) | Moving: ${isMoving} | Vel: (${Math.floor(player.vx)}, ${Math.floor(player.vy)})`;
+            const totalBlocks = Object.values(inventory).reduce((a, b) => a + b, 0);
+            debugEl.textContent = `Position: (${Math.floor(player.x)}, ${Math.floor(player.y)}) | Blocks Mined: ${totalBlocks}`;
+        }
+
+        // ==================== GAME LOOP ====================
+        function gameLoop() {
+            // Player input
+            if (keys['a'] || keys['arrowleft']) {
+                player.vx = -PLAYER_SPEED;
+            } else if (keys['d'] || keys['arrowright']) {
+                player.vx = PLAYER_SPEED;
+            } else {
+                player.vx *= 0.8;
+            }
+
+            // Update physics
+            player.update(terrain);
+
+            // Render
+            render();
 
             requestAnimationFrame(gameLoop);
         }
 
-        // Start game
         gameLoop();
+        updateInventory();
     </script>
 </body>
 </html>
