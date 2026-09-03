@@ -3,53 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UnderGloom - An Underground Exploration</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <title>UnderGloom</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             background: #0a0a0a;
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             color: #ccc;
-            flex-direction: column;
-            gap: 20px;
         }
-
-        #game-container {
+        #gameContainer {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 20px;
         }
-
-        canvas {
+        #gameCanvas {
             border: 3px solid #1a3a3a;
             box-shadow: 0 0 20px rgba(100, 200, 255, 0.2);
-            image-rendering: pixelated;
+            display: block;
+            background: #0a1a1f;
         }
-
         #info {
             text-align: center;
-            color: #888;
-            font-size: 14px;
-            max-width: 800px;
-        }
-
-        #info h1 {
             color: #6ec8ff;
-            margin-bottom: 10px;
+            font-size: 14px;
             text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
         }
-
         #debug {
             color: #6ec8ff;
             font-size: 12px;
@@ -58,189 +45,41 @@
     </style>
 </head>
 <body>
-    <div id="game-container">
+    <div id="gameContainer">
         <div id="info">
             <h1>UnderGloom</h1>
-            <p>Use arrow keys or WASD to explore the mysterious depths...</p>
+            <p>Use WASD or Arrow Keys to move</p>
         </div>
-        <div id="debug">Position: (0, 0) | Velocity: (0, 0)</div>
+        <canvas id="gameCanvas" width="1024" height="576"></canvas>
+        <div id="debug">Position: (0, 0) | Moving: No</div>
     </div>
 
     <script>
-        // ==================== ASSET URLS ====================
-        const ASSET_URLS = {
-            // Mire Clay Family
-            'blink-moss': 'https://ibb.co/0RgdcLJn',
-            'mire-clay': 'https://ibb.co/HDbHt2TY',
-            
-            // Mushrooms
-            'frost-lantern-stem': 'https://ibb.co/ns2dccGr',
-            'mushroom': 'https://ibb.co/ns2dccGr',
-            
-            // Underground
-            'hardened-clay': 'https://ibb.co/Lz528FfZ',
-            'coal-ore': 'https://ibb.co/xT4yvn3',
-            'iron-ore': 'https://ibb.co/sJV5YGnR',
-            
-            // Ground Cover
-            'lumen-pustule': 'https://ibb.co/rKY2h0vb',
-            'glimmer-filament': 'https://ibb.co/qF1dMd27',
-        };
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const debugEl = document.getElementById('debug');
 
-        // ==================== GAME CONFIGURATION ====================
-        const GAME_CONFIG = {
-            type: Phaser.AUTO,
-            width: 1024,
-            height: 576,
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: 0 },
-                    debug: false
-                }
-            },
-            scene: [BootScene, GameScene],
-            backgroundColor: '#0a1a1f',
-            render: {
-                pixelArt: true,
-                antialias: false,
-                smoothStep: false
-            },
-            scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH
-            }
-        };
-
-        // Game Constants
+        // ==================== CONSTANTS ====================
         const TILE_SIZE = 8;
         const CHUNK_WIDTH = 16;
         const CHUNK_HEIGHT = 16;
         const CHUNK_PIXEL_WIDTH = CHUNK_WIDTH * TILE_SIZE;
         const CHUNK_PIXEL_HEIGHT = CHUNK_HEIGHT * TILE_SIZE;
-
-        // Player Constants
-        const PLAYER_WIDTH = 6;
-        const PLAYER_HEIGHT = 6;
+        const WORLD_WIDTH = 10000;
+        const WORLD_HEIGHT = 1000;
         const PLAYER_SPEED = 120;
 
-        // ==================== BOOT SCENE ====================
-        class BootScene extends Phaser.Scene {
-            constructor() {
-                super({ key: 'BootScene' });
-            }
-
-            preload() {
-                // Create placeholder textures while loading actual images
-                this.createPlaceholderTextures();
-            }
-
-            createPlaceholderTextures() {
-                // Mire Clay
-                const clayCanvas = document.createElement('canvas');
-                clayCanvas.width = 8;
-                clayCanvas.height = 8;
-                let ctx = clayCanvas.getContext('2d');
-                ctx.fillStyle = '#4a3a2a';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#3a2a1a';
-                ctx.fillRect(1, 1, 2, 2);
-                ctx.fillRect(4, 3, 2, 2);
-                ctx.fillRect(2, 5, 2, 2);
-                this.textures.addCanvas('mire-clay', clayCanvas);
-
-                // Stone
-                const stoneCanvas = document.createElement('canvas');
-                stoneCanvas.width = 8;
-                stoneCanvas.height = 8;
-                ctx = stoneCanvas.getContext('2d');
-                ctx.fillStyle = '#2a3a4a';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#1a2a3a';
-                ctx.fillRect(0, 0, 4, 4);
-                ctx.fillRect(4, 4, 4, 4);
-                this.textures.addCanvas('hardened-clay', stoneCanvas);
-
-                // Coal Ore
-                const coalCanvas = document.createElement('canvas');
-                coalCanvas.width = 8;
-                coalCanvas.height = 8;
-                ctx = coalCanvas.getContext('2d');
-                ctx.fillStyle = '#1a1a1a';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#2a2a2a';
-                for (let i = 0; i < 4; i++) {
-                    ctx.fillRect(Math.random() * 8, Math.random() * 8, 2, 2);
-                }
-                this.textures.addCanvas('coal-ore', coalCanvas);
-
-                // Iron Ore
-                const ironCanvas = document.createElement('canvas');
-                ironCanvas.width = 8;
-                ironCanvas.height = 8;
-                ctx = ironCanvas.getContext('2d');
-                ctx.fillStyle = '#3a3a3a';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#7a7a7a';
-                ctx.fillRect(2, 2, 2, 2);
-                ctx.fillRect(4, 4, 2, 2);
-                this.textures.addCanvas('iron-ore', ironCanvas);
-
-                // Mushroom
-                const mushroomCanvas = document.createElement('canvas');
-                mushroomCanvas.width = 8;
-                mushroomCanvas.height = 8;
-                ctx = mushroomCanvas.getContext('2d');
-                ctx.fillStyle = '#0a1a1f';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#8a5a3a';
-                ctx.fillRect(3, 5, 2, 3);
-                ctx.fillStyle = '#6a4a8a';
-                ctx.fillRect(1, 2, 6, 3);
-                ctx.fillStyle = '#8a6aaa';
-                ctx.fillRect(2, 3, 4, 2);
-                this.textures.addCanvas('mushroom', mushroomCanvas);
-
-                // Blink Moss
-                const mossCanvas = document.createElement('canvas');
-                mossCanvas.width = 8;
-                mossCanvas.height = 8;
-                ctx = mossCanvas.getContext('2d');
-                ctx.fillStyle = '#4a3a2a';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#5a8a3a';
-                ctx.fillRect(1, 4, 6, 4);
-                ctx.fillStyle = '#7aaa5a';
-                ctx.fillRect(2, 3, 4, 2);
-                this.textures.addCanvas('blink-moss', mossCanvas);
-
-                // Glow Plant
-                const glowCanvas = document.createElement('canvas');
-                glowCanvas.width = 8;
-                glowCanvas.height = 8;
-                ctx = glowCanvas.getContext('2d');
-                ctx.fillStyle = '#0a1a1f';
-                ctx.fillRect(0, 0, 8, 8);
-                ctx.fillStyle = '#aaff44';
-                ctx.fillRect(3, 2, 2, 6);
-                ctx.fillStyle = '#ffff88';
-                ctx.fillRect(2, 3, 4, 2);
-                this.textures.addCanvas('lumen-pustule', glowCanvas);
-
-                // Empty
-                const emptyCanvas = document.createElement('canvas');
-                emptyCanvas.width = 8;
-                emptyCanvas.height = 8;
-                ctx = emptyCanvas.getContext('2d');
-                ctx.fillStyle = '#0a1a1f';
-                ctx.fillRect(0, 0, 8, 8);
-                this.textures.addCanvas('empty', emptyCanvas);
-            }
-
-            create() {
-                this.scene.start('GameScene');
-            }
-        }
+        // ==================== TILE COLORS ====================
+        const TILE_COLORS = {
+            'mire-clay': '#4a3a2a',
+            'blink-moss': '#5a8a3a',
+            'mushroom': '#6a4a8a',
+            'lumen-pustule': '#aaff44',
+            'hardened-clay': '#2a3a4a',
+            'coal-ore': '#1a1a1a',
+            'iron-ore': '#3a3a3a',
+            'empty': '#0a1a1f'
+        };
 
         // ==================== TERRAIN GENERATOR ====================
         class TerrainGenerator {
@@ -251,21 +90,6 @@
             seededRandom(x, y, seed = this.seed) {
                 const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
                 return n - Math.floor(n);
-            }
-
-            generateChunk(chunkX, chunkY) {
-                const terrain = [];
-
-                for (let y = 0; y < CHUNK_HEIGHT; y++) {
-                    terrain[y] = [];
-                    for (let x = 0; x < CHUNK_WIDTH; x++) {
-                        const worldX = chunkX * CHUNK_WIDTH + x;
-                        const worldY = chunkY * CHUNK_HEIGHT + y;
-                        terrain[y][x] = this.generateTile(worldX, worldY);
-                    }
-                }
-
-                return terrain;
             }
 
             generateTile(worldX, worldY) {
@@ -301,195 +125,137 @@
             }
         }
 
+        // ==================== PLAYER ====================
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.width = 6;
+                this.height = 6;
+            }
+
+            update(keys) {
+                // Apply input
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                    this.vx = -PLAYER_SPEED;
+                } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                    this.vx = PLAYER_SPEED;
+                } else {
+                    this.vx *= 0.8;
+                }
+
+                if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+                    this.vy = -PLAYER_SPEED * 0.7;
+                } else if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+                    this.vy = PLAYER_SPEED * 0.7;
+                } else {
+                    this.vy *= 0.8;
+                }
+
+                // Update position
+                this.x += this.vx / 60;
+                this.y += this.vy / 60;
+
+                // Clamp to world bounds
+                this.x = Math.max(50, Math.min(WORLD_WIDTH - 50, this.x));
+                this.y = Math.max(50, Math.min(WORLD_HEIGHT - 50, this.y));
+            }
+
+            draw(ctx, camX, camY) {
+                const screenX = this.x - camX;
+                const screenY = this.y - camY;
+                ctx.fillStyle = '#6ec8ff';
+                ctx.fillRect(screenX - this.width / 2, screenY - this.height / 2, this.width, this.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(screenX - 2, screenY - 2, 1, 1);
+                ctx.fillRect(screenX + 1, screenY - 2, 1, 1);
+            }
+        }
+
         // ==================== CHUNK MANAGER ====================
         class ChunkManager {
-            constructor(scene) {
-                this.scene = scene;
-                this.loadedChunks = new Map();
-                this.terrainGenerator = new TerrainGenerator();
-            }
-
-            getChunkCoords(worldX, worldY) {
-                const chunkX = Math.floor(worldX / CHUNK_PIXEL_WIDTH);
-                const chunkY = Math.floor(worldY / CHUNK_PIXEL_HEIGHT);
-                return { x: chunkX, y: chunkY };
-            }
-
-            getChunkKey(chunkX, chunkY) {
-                return `${chunkX},${chunkY}`;
-            }
-
-            updateChunks(playerX, playerY) {
-                const playerChunk = this.getChunkCoords(playerX, playerY);
-                const renderDistance = 2;
-
-                for (let x = playerChunk.x - renderDistance; x <= playerChunk.x + renderDistance; x++) {
-                    for (let y = playerChunk.y - renderDistance; y <= playerChunk.y + renderDistance; y++) {
-                        const key = this.getChunkKey(x, y);
-                        if (!this.loadedChunks.has(key)) {
-                            this.loadChunk(x, y);
-                        }
-                    }
-                }
-
-                for (const [key, chunk] of this.loadedChunks.entries()) {
-                    const [x, y] = key.split(',').map(Number);
-                    if (Math.abs(x - playerChunk.x) > renderDistance + 1 || 
-                        Math.abs(y - playerChunk.y) > renderDistance + 1) {
-                        this.unloadChunk(key);
-                    }
-                }
-            }
-
-            loadChunk(chunkX, chunkY) {
-                const key = this.getChunkKey(chunkX, chunkY);
-                const terrain = this.terrainGenerator.generateChunk(chunkX, chunkY);
-                
-                const sprites = [];
-                const startX = chunkX * CHUNK_PIXEL_WIDTH;
-                const startY = chunkY * CHUNK_PIXEL_HEIGHT;
-
-                for (let y = 0; y < CHUNK_HEIGHT; y++) {
-                    for (let x = 0; x < CHUNK_WIDTH; x++) {
-                        const tile = terrain[y][x];
-                        const worldX = startX + x * TILE_SIZE;
-                        const worldY = startY + y * TILE_SIZE;
-
-                        const sprite = this.scene.add.sprite(
-                            worldX + TILE_SIZE / 2, 
-                            worldY + TILE_SIZE / 2, 
-                            tile
-                        );
-                        sprite.setOrigin(0.5, 0.5);
-                        sprite.setDisplaySize(TILE_SIZE, TILE_SIZE);
-                        sprites.push(sprite);
-                    }
-                }
-
-                this.loadedChunks.set(key, { x: chunkX, y: chunkY, sprites });
-            }
-
-            unloadChunk(key) {
-                const chunk = this.loadedChunks.get(key);
-                if (chunk) {
-                    chunk.sprites.forEach(sprite => sprite.destroy());
-                }
-                this.loadedChunks.delete(key);
-            }
-        }
-
-        // ==================== PLAYER CLASS ====================
-        class Player extends Phaser.Physics.Arcade.Sprite {
-            constructor(scene, x, y) {
-                super(scene, x, y, 'player');
-                scene.add.existing(this);
-                scene.physics.add.existing(this);
-                
-                this.setOrigin(0.5, 0.5);
-                this.setCollideWorldBounds(true);
-                this.setBounce(0, 0);
-                this.setDrag(0.99);
-                
-                // Input keys
-                this.keys = {
-                    left: false,
-                    right: false,
-                    up: false,
-                    down: false
-                };
-            }
-
-            update() {
-                // Reset velocity
-                this.setVelocity(0, 0);
-
-                // Apply movement
-                if (this.keys.left) {
-                    this.setVelocityX(-PLAYER_SPEED);
-                } else if (this.keys.right) {
-                    this.setVelocityX(PLAYER_SPEED);
-                }
-
-                if (this.keys.up) {
-                    this.setVelocityY(-PLAYER_SPEED * 0.7);
-                } else if (this.keys.down) {
-                    this.setVelocityY(PLAYER_SPEED * 0.7);
-                }
-            }
-        }
-
-        // ==================== GAME SCENE ====================
-        class GameScene extends Phaser.Scene {
             constructor() {
-                super({ key: 'GameScene' });
+                this.terrain = new TerrainGenerator();
+                this.chunks = new Map();
             }
 
-            create() {
-                // Create player sprite
-                const playerCanvas = document.createElement('canvas');
-                playerCanvas.width = 6;
-                playerCanvas.height = 6;
-                const ctx = playerCanvas.getContext('2d');
-                ctx.fillStyle = '#6ec8ff';
-                ctx.fillRect(0, 0, 6, 6);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(1, 1, 1, 1);
-                ctx.fillRect(4, 1, 1, 1);
-                this.textures.addCanvas('player', playerCanvas);
-
-                // Set up camera
-                this.cameras.main.setBounds(0, 0, 10000, 1000);
-                this.cameras.main.setLerp(0.15, 0.15);
-
-                // Initialize systems
-                this.chunkManager = new ChunkManager(this);
-                this.player = new Player(this, 512, 200);
-
-                // Load initial chunks
-                this.chunkManager.updateChunks(this.player.x, this.player.y);
-
-                // Input handling
-                this.cursors = this.input.keyboard.createCursorKeys();
-                this.wasd = this.input.keyboard.addKeys({
-                    W: Phaser.Input.Keyboard.KeyCodes.W,
-                    S: Phaser.Input.Keyboard.KeyCodes.S,
-                    A: Phaser.Input.Keyboard.KeyCodes.A,
-                    D: Phaser.Input.Keyboard.KeyCodes.D
-                });
-
-                this.input.keyboard.on('keydown', (event) => {
-                    if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') this.player.keys.left = true;
-                    if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') this.player.keys.right = true;
-                    if (event.key === 'ArrowUp' || event.key === 'w' || event.key === 'W') this.player.keys.up = true;
-                    if (event.key === 'ArrowDown' || event.key === 's' || event.key === 'S') this.player.keys.down = true;
-                });
-
-                this.input.keyboard.on('keyup', (event) => {
-                    if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') this.player.keys.left = false;
-                    if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') this.player.keys.right = false;
-                    if (event.key === 'ArrowUp' || event.key === 'w' || event.key === 'W') this.player.keys.up = false;
-                    if (event.key === 'ArrowDown' || event.key === 's' || event.key === 'S') this.player.keys.down = false;
-                });
+            getTile(x, y) {
+                return this.terrain.generateTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE));
             }
 
-            update() {
-                // Update player
-                this.player.update();
+            drawChunk(ctx, camX, camY, startTileX, startTileY) {
+                const endTileX = startTileX + Math.ceil(canvas.width / TILE_SIZE) + 2;
+                const endTileY = startTileY + Math.ceil(canvas.height / TILE_SIZE) + 2;
 
-                // Update camera
-                this.cameras.main.centerOn(this.player.x, this.player.y);
+                for (let tx = startTileX; tx < endTileX; tx++) {
+                    for (let ty = startTileY; ty < endTileY; ty++) {
+                        const tileType = this.getTile(tx * TILE_SIZE, ty * TILE_SIZE);
+                        const color = TILE_COLORS[tileType] || '#0a1a1f';
+                        
+                        const worldX = tx * TILE_SIZE;
+                        const worldY = ty * TILE_SIZE;
+                        const screenX = worldX - camX;
+                        const screenY = worldY - camY;
 
-                // Update chunks
-                this.chunkManager.updateChunks(this.player.x, this.player.y);
+                        ctx.fillStyle = color;
+                        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
 
-                // Update debug info
-                document.getElementById('debug').textContent = 
-                    `Position: (${Math.floor(this.player.x)}, ${Math.floor(this.player.y)}) | Velocity: (${Math.floor(this.player.body.velocity.x)}, ${Math.floor(this.player.body.velocity.y)})`;
+                        // Add grid
+                        ctx.strokeStyle = '#1a2a3a';
+                        ctx.lineWidth = 0.5;
+                        ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                    }
+                }
             }
         }
 
-        // ==================== GAME INITIALIZATION ====================
-        const game = new Phaser.Game(GAME_CONFIG);
+        // ==================== GAME STATE ====================
+        const terrain = new TerrainGenerator();
+        const chunkManager = new ChunkManager();
+        const player = new Player(512, 200);
+        const keys = {};
+
+        // ==================== INPUT HANDLING ====================
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // ==================== GAME LOOP ====================
+        function gameLoop() {
+            // Update
+            player.update(keys);
+
+            // Camera follows player
+            const camX = player.x - canvas.width / 2;
+            const camY = player.y - canvas.height / 2;
+
+            // Draw
+            ctx.fillStyle = '#0a1a1f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw chunks
+            const startTileX = Math.floor(camX / TILE_SIZE) - 1;
+            const startTileY = Math.floor(camY / TILE_SIZE) - 1;
+            chunkManager.drawChunk(ctx, camX, camY, startTileX, startTileY);
+
+            // Draw player
+            player.draw(ctx, camX, camY);
+
+            // Update debug
+            const isMoving = Math.abs(player.vx) > 1 || Math.abs(player.vy) > 1 ? 'Yes' : 'No';
+            debugEl.textContent = `Position: (${Math.floor(player.x)}, ${Math.floor(player.y)}) | Moving: ${isMoving} | Vel: (${Math.floor(player.vx)}, ${Math.floor(player.vy)})`;
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game
+        gameLoop();
     </script>
 </body>
 </html>
