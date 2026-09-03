@@ -20,6 +20,8 @@
             background: #0a0a0a;
             font-family: 'Arial', sans-serif;
             color: #ccc;
+            flex-direction: column;
+            gap: 20px;
         }
 
         #game-container {
@@ -32,6 +34,7 @@
         canvas {
             border: 3px solid #1a3a3a;
             box-shadow: 0 0 20px rgba(100, 200, 255, 0.2);
+            image-rendering: pixelated;
         }
 
         #info {
@@ -46,6 +49,12 @@
             margin-bottom: 10px;
             text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
         }
+
+        #debug {
+            color: #6ec8ff;
+            font-size: 12px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -54,9 +63,117 @@
             <h1>UnderGloom</h1>
             <p>Use arrow keys or WASD to explore the mysterious depths...</p>
         </div>
+        <div id="debug">Position: (0, 0)</div>
     </div>
 
     <script>
+        // ==================== TILE ASSET GENERATOR ====================
+        // Since we don't have the images, we'll create procedural pixel tiles
+        class TileAssetGenerator {
+            static createCanvas(width, height) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                return canvas;
+            }
+
+            static createMireClayTile() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#4a3a2a';
+                ctx.fillRect(0, 0, 8, 8);
+                // Add some texture
+                ctx.fillStyle = '#3a2a1a';
+                ctx.fillRect(1, 1, 2, 2);
+                ctx.fillRect(4, 3, 2, 2);
+                ctx.fillRect(2, 5, 2, 2);
+                return canvas;
+            }
+
+            static createStone() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#2a3a4a';
+                ctx.fillRect(0, 0, 8, 8);
+                ctx.fillStyle = '#1a2a3a';
+                ctx.fillRect(0, 0, 4, 4);
+                ctx.fillRect(4, 4, 4, 4);
+                return canvas;
+            }
+
+            static createCoalOre() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, 8, 8);
+                ctx.fillStyle = '#2a2a2a';
+                for (let i = 0; i < 4; i++) {
+                    ctx.fillRect(Math.random() * 8, Math.random() * 8, 2, 2);
+                }
+                return canvas;
+            }
+
+            static createIronOre() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#3a3a3a';
+                ctx.fillRect(0, 0, 8, 8);
+                ctx.fillStyle = '#7a7a7a';
+                ctx.fillRect(2, 2, 2, 2);
+                ctx.fillRect(4, 4, 2, 2);
+                return canvas;
+            }
+
+            static createMushroomTile() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#0a1a1f';
+                ctx.fillRect(0, 0, 8, 8);
+                // Mushroom stem
+                ctx.fillStyle = '#8a5a3a';
+                ctx.fillRect(3, 5, 2, 3);
+                // Mushroom cap
+                ctx.fillStyle = '#6a4a8a';
+                ctx.fillRect(1, 2, 6, 3);
+                ctx.fillStyle = '#8a6aaa';
+                ctx.fillRect(2, 3, 4, 2);
+                return canvas;
+            }
+
+            static createBlinkMossTile() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#4a3a2a';
+                ctx.fillRect(0, 0, 8, 8);
+                ctx.fillStyle = '#5a8a3a';
+                ctx.fillRect(1, 4, 6, 4);
+                ctx.fillStyle = '#7aaa5a';
+                ctx.fillRect(2, 3, 4, 2);
+                return canvas;
+            }
+
+            static createGlowPlant() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#0a1a1f';
+                ctx.fillRect(0, 0, 8, 8);
+                // Glowing plant
+                ctx.fillStyle = '#aaff44';
+                ctx.fillRect(3, 2, 2, 6);
+                ctx.fillStyle = '#ffff88';
+                ctx.fillRect(2, 3, 4, 2);
+                return canvas;
+            }
+
+            static createEmptyTile() {
+                const canvas = this.createCanvas(8, 8);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#0a1a1f';
+                ctx.fillRect(0, 0, 8, 8);
+                return canvas;
+            }
+        }
+
         // ==================== GAME CONFIGURATION ====================
         const GAME_CONFIG = {
             type: Phaser.AUTO,
@@ -69,12 +186,17 @@
                     debug: false
                 }
             },
-            scene: [BootScene, GameScene],
+            scene: [GameScene],
             backgroundColor: '#0a1a1f',
             render: {
                 pixelArt: true,
                 antialias: false,
-                smoothStep: false
+                smoothStep: false,
+                autoCenter: Phaser.Scale.CENTER_BOTH
+            },
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH
             }
         };
 
@@ -86,9 +208,9 @@
         const CHUNK_PIXEL_HEIGHT = CHUNK_HEIGHT * TILE_SIZE;
 
         // Player Constants
-        const PLAYER_WIDTH = 8;
-        const PLAYER_HEIGHT = 8;
-        const PLAYER_SPEED = 60;
+        const PLAYER_WIDTH = 6;
+        const PLAYER_HEIGHT = 6;
+        const PLAYER_SPEED = 100;
 
         // ==================== TERRAIN GENERATOR ====================
         class TerrainGenerator {
@@ -118,26 +240,27 @@
 
             generateTile(worldX, worldY) {
                 const rand = this.seededRandom(worldX, worldY);
-                const heightNoise = this.seededRandom(worldX, worldY * 0.5);
                 const oreNoise = this.seededRandom(worldX * 1.5, worldY * 1.5);
 
-                // Surface layer (y < 3)
-                if (worldY < 3) {
+                // Surface layer (y < 2)
+                if (worldY < 2) {
                     if (rand < 0.3) return 'mire-clay';
-                    if (rand < 0.5) return 'mushroom';
+                    if (rand < 0.5) return 'blink-moss';
+                    if (rand < 0.65) return 'mushroom';
+                    if (rand < 0.8) return 'glow-plant';
                     return 'empty';
                 }
 
-                // Upper ground layer (y 3-8)
-                if (worldY < 8) {
-                    if (rand < 0.6) return 'mire-clay';
-                    if (rand < 0.75 && oreNoise > 0.7) return 'ore-coal';
-                    if (rand < 0.85 && oreNoise > 0.8) return 'ore-iron';
+                // Upper ground layer (y 2-6)
+                if (worldY < 6) {
+                    if (rand < 0.7) return 'mire-clay';
+                    if (rand < 0.85 && oreNoise > 0.7) return 'ore-coal';
+                    if (rand < 0.95 && oreNoise > 0.8) return 'ore-iron';
                     return 'empty';
                 }
 
-                // Deep underground (y >= 8)
-                if (rand < 0.4) return 'stone';
+                // Deep underground (y >= 6)
+                if (rand < 0.5) return 'stone';
                 if (oreNoise > 0.75) {
                     if (oreNoise > 0.9) return 'ore-iron';
                     if (oreNoise > 0.85) return 'ore-coal';
@@ -154,8 +277,8 @@
                 this.scene = scene;
                 this.loadedChunks = new Map();
                 this.terrainGenerator = new TerrainGenerator();
-                this.chunkSize = CHUNK_PIXEL_WIDTH;
-                this.worldLayer = scene.add.layer();
+                this.worldLayer = scene.add.group();
+                this.tileSprites = new Map();
             }
 
             getChunkCoords(worldX, worldY) {
@@ -200,7 +323,7 @@
                     x: chunkX,
                     y: chunkY,
                     terrain: terrain,
-                    graphics: this.scene.make.graphics({ x: 0, y: 0, add: true })
+                    sprites: []
                 };
 
                 this.renderChunk(chunk);
@@ -209,15 +332,13 @@
 
             unloadChunk(chunkX, chunkY, key) {
                 const chunk = this.loadedChunks.get(key);
-                if (chunk && chunk.graphics) {
-                    chunk.graphics.destroy();
+                if (chunk) {
+                    chunk.sprites.forEach(sprite => sprite.destroy());
                 }
                 this.loadedChunks.delete(key);
             }
 
             renderChunk(chunk) {
-                const graphics = chunk.graphics;
-                graphics.clear();
                 const startX = chunk.x * CHUNK_PIXEL_WIDTH;
                 const startY = chunk.y * CHUNK_PIXEL_HEIGHT;
 
@@ -227,49 +348,58 @@
                         const worldX = startX + x * TILE_SIZE;
                         const worldY = startY + y * TILE_SIZE;
 
-                        this.drawTile(graphics, tile, worldX, worldY);
+                        this.createTileSprite(chunk, tile, worldX, worldY);
                     }
                 }
             }
 
-            drawTile(graphics, tileType, x, y) {
+            createTileSprite(chunk, tileType, worldX, worldY) {
+                let texture = null;
+                const key = `tile-${tileType}`;
+
+                if (!this.tileSprites.has(key)) {
+                    texture = this.generateTileTexture(tileType);
+                    this.tileSprites.set(key, texture);
+                }
+
+                const sprite = this.scene.add.sprite(worldX + TILE_SIZE / 2, worldY + TILE_SIZE / 2, key);
+                sprite.setOrigin(0.5, 0.5);
+                sprite.setDisplaySize(TILE_SIZE, TILE_SIZE);
+                this.worldLayer.add(sprite);
+                chunk.sprites.push(sprite);
+            }
+
+            generateTileTexture(tileType) {
+                let canvas;
                 switch (tileType) {
                     case 'stone':
-                        graphics.fillStyle(0x2a3a4a, 1);
-                        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        graphics.lineStyle(1, 0x1a2a3a, 0.3);
-                        graphics.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+                        canvas = TileAssetGenerator.createStone();
                         break;
                     case 'mire-clay':
-                        graphics.fillStyle(0x4a3a2a, 1);
-                        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        graphics.lineStyle(1, 0x3a2a1a, 0.3);
-                        graphics.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+                        canvas = TileAssetGenerator.createMireClayTile();
                         break;
                     case 'ore-coal':
-                        graphics.fillStyle(0x1a1a1a, 1);
-                        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        graphics.fillStyle(0x2a2a2a, 0.6);
-                        graphics.fillCircle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 2);
+                        canvas = TileAssetGenerator.createCoalOre();
                         break;
                     case 'ore-iron':
-                        graphics.fillStyle(0x3a3a3a, 1);
-                        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        graphics.fillStyle(0x6a6a6a, 0.6);
-                        graphics.fillCircle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 2);
+                        canvas = TileAssetGenerator.createIronOre();
                         break;
                     case 'mushroom':
-                        graphics.fillStyle(0x6a4a8a, 1);
-                        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        graphics.fillStyle(0x8a6aaa, 0.8);
-                        graphics.fillCircle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3);
+                        canvas = TileAssetGenerator.createMushroomTile();
                         break;
-                    case 'empty':
+                    case 'blink-moss':
+                        canvas = TileAssetGenerator.createBlinkMossTile();
+                        break;
+                    case 'glow-plant':
+                        canvas = TileAssetGenerator.createGlowPlant();
+                        break;
                     default:
-                        graphics.fillStyle(0x0a1a1f, 1);
-                        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        break;
+                        canvas = TileAssetGenerator.createEmptyTile();
                 }
+
+                const key = `tile-${tileType}`;
+                this.scene.textures.addCanvas(key, canvas);
+                return key;
             }
         }
 
@@ -284,59 +414,59 @@
                 this.width = PLAYER_WIDTH;
                 this.height = PLAYER_HEIGHT;
 
-                this.graphics = scene.make.graphics({ x: x, y: y, add: true });
-                this.drawPlayer();
+                // Create player sprite
+                const playerCanvas = document.createElement('canvas');
+                playerCanvas.width = 6;
+                playerCanvas.height = 6;
+                const ctx = playerCanvas.getContext('2d');
+                ctx.fillStyle = '#6ec8ff';
+                ctx.fillRect(0, 0, 6, 6);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(1, 1, 1, 1);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(4, 1, 1, 1);
+
+                this.scene.textures.addCanvas('player', playerCanvas);
+                this.sprite = scene.add.sprite(x, y, 'player');
+                this.sprite.setOrigin(0.5, 0.5);
             }
 
-            drawPlayer() {
-                this.graphics.clear();
-                this.graphics.fillStyle(0x8899ff, 1);
-                this.graphics.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-                this.graphics.fillStyle(0xffffff, 1);
-                this.graphics.fillRect(this.x - 1, this.y - 2, 1, 1);
-            }
-
-            move(left, right, up, down, jump) {
+            move(left, right, up, down) {
+                // Horizontal movement
                 if (left) {
                     this.velocityX = -PLAYER_SPEED;
                 } else if (right) {
                     this.velocityX = PLAYER_SPEED;
                 } else {
-                    this.velocityX *= 0.85;
+                    this.velocityX *= 0.8;
                 }
 
-                if (up && this.y > 100) {
-                    this.velocityY = -PLAYER_SPEED * 0.5;
-                } else if (down && this.y < 900) {
-                    this.velocityY = PLAYER_SPEED * 0.5;
+                // Vertical movement
+                if (up) {
+                    this.velocityY = -PLAYER_SPEED * 0.7;
+                } else if (down) {
+                    this.velocityY = PLAYER_SPEED * 0.7;
                 } else {
-                    this.velocityY *= 0.9;
+                    this.velocityY *= 0.8;
                 }
 
-                this.x += this.velocityX * 0.016;
-                this.y += this.velocityY * 0.016;
+                // Apply velocity
+                const delta = 1 / 60; // 60 FPS
+                this.x += this.velocityX * delta;
+                this.y += this.velocityY * delta;
 
-                if (this.x < 100) this.x = 100;
-                if (this.x > 9900) this.x = 9900;
+                // Boundary constraints
+                if (this.x < 50) this.x = 50;
+                if (this.x > 10000 - 50) this.x = 10000 - 50;
                 if (this.y < 50) this.y = 50;
-                if (this.y > 950) this.y = 950;
+                if (this.y > 1000 - 50) this.y = 1000 - 50;
 
-                this.drawPlayer();
-            }
-        }
-
-        // ==================== BOOT SCENE ====================
-        class BootScene extends Phaser.Scene {
-            constructor() {
-                super({ key: 'BootScene' });
+                this.sprite.x = this.x;
+                this.sprite.y = this.y;
             }
 
-            preload() {
-                // Asset loading placeholder
-            }
-
-            create() {
-                this.scene.start('GameScene');
+            getPosition() {
+                return { x: this.x, y: this.y };
             }
         }
 
@@ -347,38 +477,46 @@
             }
 
             create() {
+                // Set up camera
                 this.cameras.main.setBounds(0, 0, 10000, 1000);
-                this.cameras.main.setLerp(0.1, 0);
+                this.cameras.main.setLerp(0.15, 0.15);
 
+                // Initialize systems
                 this.chunkManager = new ChunkManager(this);
-                this.terrainGenerator = new TerrainGenerator();
-
                 this.player = new Player(this, 512, 200);
 
+                // Load initial chunks
                 this.chunkManager.updateChunks(this.player.x, this.player.y);
 
+                // Input handling
                 this.cursors = this.input.keyboard.createCursorKeys();
                 this.wasd = this.input.keyboard.addKeys({
                     up: Phaser.Input.Keyboard.KeyCodes.W,
                     down: Phaser.Input.Keyboard.KeyCodes.S,
                     left: Phaser.Input.Keyboard.KeyCodes.A,
-                    right: Phaser.Input.Keyboard.KeyCodes.D,
-                    space: Phaser.Input.Keyboard.KeyCodes.SPACE
+                    right: Phaser.Input.Keyboard.KeyCodes.D
                 });
             }
 
             update() {
+                // Get input
                 const moveLeft = this.cursors.left.isDown || this.wasd.left.isDown;
                 const moveRight = this.cursors.right.isDown || this.wasd.right.isDown;
                 const moveUp = this.cursors.up.isDown || this.wasd.up.isDown;
                 const moveDown = this.cursors.down.isDown || this.wasd.down.isDown;
-                const jump = this.wasd.space.isDown;
 
-                this.player.move(moveLeft, moveRight, moveUp, moveDown, jump);
+                // Move player
+                this.player.move(moveLeft, moveRight, moveUp, moveDown);
 
+                // Update camera
                 this.cameras.main.centerOn(this.player.x, this.player.y);
 
+                // Update chunks
                 this.chunkManager.updateChunks(this.player.x, this.player.y);
+
+                // Update debug info
+                const pos = this.player.getPosition();
+                document.getElementById('debug').textContent = `Position: (${Math.floor(pos.x)}, ${Math.floor(pos.y)})`;
             }
         }
 
